@@ -1,7 +1,8 @@
 # Multi-Container Runtime (OS Jackfruit)
 
 ## Team
-- Shreyank Sridhar
+- Shreyank Sridhar PES1UG24CS443
+- Shashank arya PES1UG24CS432
 
 ## Status
 All required implementation phases are complete:
