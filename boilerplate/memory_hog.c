@@ -1,64 +1,41 @@
-/*
- * memory_hog.c - Memory pressure workload for soft / hard limit testing.
- *
- * Default behavior:
- *   - allocate 8 MiB every second
- *   - touch each page so RSS actually grows
- *
- * Usage:
- *   /memory_hog [chunk_mb] [sleep_ms]
- *
- * If you plan to copy this binary into an Alpine rootfs, build it in a way
- * that is runnable inside that filesystem, such as static linking or
- * rebuilding it from inside the rootfs/toolchain you choose.
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-static size_t parse_size_mb(const char *arg, size_t fallback)
-{
-    char *end = NULL;
-    unsigned long value = strtoul(arg, &end, 10);
+int main(int argc, char **argv) {
+    size_t mib = 64;
+    int seconds = 20;
 
-    if (!arg || *arg == '\0' || (end && *end != '\0') || value == 0)
-        return fallback;
-    return (size_t)value;
-}
-
-static useconds_t parse_sleep_ms(const char *arg, useconds_t fallback)
-{
-    char *end = NULL;
-    unsigned long value = strtoul(arg, &end, 10);
-
-    if (!arg || *arg == '\0' || (end && *end != '\0'))
-        return fallback;
-    return (useconds_t)(value * 1000U);
-}
-
-int main(int argc, char *argv[])
-{
-    const size_t chunk_mb = (argc > 1) ? parse_size_mb(argv[1], 8) : 8;
-    const useconds_t sleep_us = (argc > 2) ? parse_sleep_ms(argv[2], 1000U) : 1000U * 1000U;
-    const size_t chunk_bytes = chunk_mb * 1024U * 1024U;
-    int count = 0;
-
-    while (1) {
-        char *mem = malloc(chunk_bytes);
-        if (!mem) {
-            printf("malloc failed after %d allocations\n", count);
-            break;
-        }
-
-        memset(mem, 'A', chunk_bytes);
-        count++;
-        printf("allocation=%d chunk=%zuMB total=%zuMB\n",
-               count, chunk_mb, (size_t)count * chunk_mb);
-        fflush(stdout);
-        usleep(sleep_us);
+    if (argc >= 2) {
+        mib = (size_t)strtoul(argv[1], NULL, 10);
+    }
+    if (argc >= 3) {
+        seconds = atoi(argv[2]);
     }
 
+    size_t bytes = mib * 1024UL * 1024UL;
+    char *buf = malloc(bytes);
+    if (buf == NULL) {
+        perror("malloc");
+        return 1;
+    }
+
+    size_t page = (size_t)sysconf(_SC_PAGESIZE);
+    for (size_t i = 0; i < bytes; i += page) {
+        buf[i] = (char)(i & 0xff);
+    }
+
+    printf("allocated %zu MiB\n", mib);
+    fflush(stdout);
+
+    for (int i = 0; i < seconds; ++i) {
+        usleep(100000);
+        size_t idx = (size_t)(i * 9973) % (bytes ? bytes : 1);
+        buf[idx] ^= 0x1;
+    }
+
+    printf("memory_hog done\n");
+    free(buf);
     return 0;
 }
